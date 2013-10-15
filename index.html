@@ -46,31 +46,31 @@
                   <script type="text/template">
                      ## Back-End
                      ### The Shitty way
-                     
+
                      ```
    sub read_post {
       my $self = shift;
-      
+
       my $template;
 
       if ($self->query->param('id') {
          $template = $self->load_tmpl( 'rotator_post.tmpl',
                                           die_on_bad_params => 0,
-                                          loop_context_vars => 1); 
+                                          loop_context_vars => 1);
 
          my $stmt = 'SELECT * FROM posts WHERE id = ?';
          my $post = $self->dbh->selectrow_hashref($stmt, undef, $self->query->param('id'));
 
-         $template -> param( $post );   
+         $template -> param( $post );
       } else {
          $template = $self->load_tmpl( 'list_post.tmpl',
                                           die_on_bad_params => 0,
-                                          loop_context_vars => 1); 
-      
+                                          loop_context_vars => 1);
+
          my $stmt = "SELECT * FROM posts";
          my $list_array = $self->dbh->selectall_arrayref($stmt, {Slice => {}});
-         
-         $template -> param( list => $list_array );   
+
+         $template -> param( list => $list_array );
       }
 
       return $template->output();
@@ -82,7 +82,7 @@
                   <script type="text/template">
                      ## Back-End
                      ### The Elegent way
-                     
+
                      ```
    get '/?:id?' => sub {
       if ( param 'id' ) {
@@ -101,59 +101,165 @@
             <section>
                <section data-markdown>
                   <script type="text/template">
-                     ## Front-End
-                     ### The Shitty way
-                     
-                     ```
-   sub read_post {
-      my $self = shift;
-      
-      my $template;
+## Front-End
 
-      if ($self->query->param('id') {
-         $template = $self->load_tmpl( 'rotator_post.tmpl',
-                                          die_on_bad_params => 0,
-                                          loop_context_vars => 1); 
+### The Shitty way
 
-         my $stmt = 'SELECT * FROM posts WHERE id = ?';
-         my $post = $self->dbh->selectrow_hashref($stmt, undef, $self->query->param('id'));
+ ```
+     var app = app || {};
 
-         $template -> param( $post );   
-      } else {
-         $template = $self->load_tmpl( 'list_post.tmpl',
-                                          die_on_bad_params => 0,
-                                          loop_context_vars => 1); 
-      
-         my $stmt = "SELECT * FROM posts";
-         my $list_array = $self->dbh->selectall_arrayref($stmt, {Slice => {}});
-         
-         $template -> param( list => $list_array );   
-      }
+     app.init = function () {
+       var routes = [];
+       routes.push (
+         { regex: /^\/posts/, callback: listPosts },
+         { regex: /%\/posts\/(\d+)/, callback: showPost },
+         { regex: /%\/posts\/delete\/(\d+)/, callback: deletePost },
+         { regex: /.*/, callBack: default }
+       );
 
-      return $template->output();
-   }
+       // does not take into account
+       // pushstate / hashchange browser support
+       $(window).on('popstate', this.navigate);
+     }
+
+     app.navigate = function () {
+       var path = window.location.pathname;
+       for (var i = 0; i < this.routes.length; i++) {
+         var match = path.match(this.routes[i].regex);
+         if (match) {
+           this.routes[i].callback.apply(this, match.slice(1));
+         }
+       };
+     }
+
+     app.listPosts = function () {
+       var postsRequest = $.ajax('/posts', {
+         dataType: 'json',
+         success: function(data) {
+           var posts = JSON.parse(data);
+           var postElements = [];
+
+           $.each(posts, function (index, post) {
+             // assumes that there is a #posts div on page
+             var template = '<article class="post post-list"'
+             // our id is tied to our dom element
+             + 'data-id="' post.id + '">'
+             + '<h1>' + post.title
+             + '</h1><div class="description">'
+             + post.description + '</div>'
+             + '<button class="delete">delete</button>';
+
+             postElements.push(template);
+           });
+
+           $('#posts')
+           .append(postElements);
+           .on('click', '.post', function () {
+             app.getPost($(this).attr('data-id'));
+           })
+           .on('click', '.delete', function () {
+             app.deletePost($(this).attr('data-id'));
+           });
+         };
+       });
+
+       app.getPost = function () {
+         $.getJSON('/posts' + id, function (data) {
+           var template = '<article>'
+           + data.body
+           + '</article>';
+           $('body').html(template);
+         })
+       };
+
+       app.deletePost = function (id) {
+         var self = this;
+         $.ajax('/posts' + id, {dataType: 'DELETE', done: function () {
+            self.listPosts();
+         }});
+       };
+     }
+
+     // kick things off
+     app.init();
                      ```
                   </script>
                </section>
-               <section data-markdown>
+        <section data-markdown>
+            <script type="text/template">
+            ## Front-End
+            ### The elegant way
+            #### Model
+            ```
+            var model = Backbone.model.extend({
+                    url: '/posts',
+            });
+           ```
+           </script>
+       </section>
+
+                <section data-markdown>
                   <script type="text/template">
-                     ## Front-End
-                     ### The Elegent way
-                     
-                     ```
-   get '/?:id?' => sub {
-      if ( param 'id' ) {
-         $tmpl_params{post} = Post->find(param 'id')->cereal
-         template 'post_read.tt', \%tmpl_params;
-      } else {
-         $tmpl_params{posts} = \@{[Post->all]};
-         template 'post_list.tt', \%tmpl_params;
-      }
-   }
+                      ## Front-End
+                      ### The elegant way
+                      #### View
+                      ```
+                      var view = Backbone.View.extend({
+                              model: model,
+                              template: _.template('<h1><a href="posts/<%= id %>"> <%= title %></a></h1><p><%= description %></p>'),
+                              tagName: 'article',
+                              events: {
+                                    'click .eRemove': 'removeModel'
+                              },
 
-                     ```
+                              initialize: function () {
+                                  this.model.on('change', this.render, this);
+                                  this.model.on('destroy', this.remove, this);
+                                  this.model.on('hide', this.remove, this);
+                              },
+
+                              removeModel: function () {
+                                this.model.destroy({wait: true});
+                              },
+
+                              remove: function () {
+                                this.$el.remove();
+                              },
+
+                              render: function () {
+                                var attr = this.model.attributes;
+                                this.$el.html(this.template(attr));
+                                return this;
+                              }
+                        });
+                        })
+
+                      ```
+                </script>
+                </section>
+
+                <section data-markdown>
+                  <script type="text/template">
+                  ## Front-End
+                  ### The elegant way
+                  #### Controller
+                  ```
+                  router = Backbone.Router.extend({
+                      routes: {
+                        '': 'home',
+                        'posts/:id': 'show',
+                      },
+
+                      show: function (id) {
+                          var post = new model({id: id});
+                          post.fetch({success:function () {
+                            $('#content').html(new view({model: post }).render().el);
+                          }});
+                      },
+                  });
+                  ```
                   </script>
-               </section>
+                </section>
             </section>
             <!-- Explain MVC -->
 				<section>
